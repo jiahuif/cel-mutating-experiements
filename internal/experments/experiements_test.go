@@ -6,9 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
-	"github.com/google/cel-go/common/types/traits"
 	"github.com/google/cel-go/interpreter"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,15 +55,15 @@ func TestDeploymentSidecarContainer(t *testing.T) {
 	}
 	deployment := createDeployment()
 	variables := lazy.NewMapValue(variablesType)
+	mutator := newObjectMutator(deployment.Object)
 	activation := &testActivation{
 		variables: variables,
-		object:    deployment.Object,
+		object:    mutator,
 	}
-	v, err := compileAndRun(env, activation, "variables")
+	_, err = compileAndRun(env, activation, "object")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(v)
 }
 
 type testActivation struct {
@@ -95,6 +93,7 @@ func buildTestEnv() (*cel.Env, error) {
 			IntroducedVersion: version.MajorMinor(1, 28),
 			EnvOptions: []cel.EnvOption{
 				cel.Variable("variables", variablesType.CelType()),
+				cel.Variable("object", cel.DynType),
 			},
 			DeclTypes: []*apiservercel.DeclType{
 				variablesType,
@@ -108,21 +107,10 @@ func buildTestEnv() (*cel.Env, error) {
 }
 
 var variablesType = apiservercel.NewMapType(apiservercel.StringType, apiservercel.AnyType, 0)
-var objectMutatorTypeValue = types.NewTypeValue("io.x-k8s.ObjectMutator", traits.IndexerType)
-var stringMutatorTypeValue = types.NewTypeValue("io.x-k8s.StringMutator")
+var objectMutatorType = apiservercel.NewObjectType("io.x-k8s.ObjectMutator", map[string]*apiservercel.DeclField{})
 
 func init() {
 	variablesType.Fields = make(map[string]*apiservercel.DeclField)
-}
-
-type objectMutator struct {
-	typeValue *types.TypeValue
-
-	ref map[string]any
-}
-
-func newObjectMutator(ref map[string]any) *objectMutator {
-	return &objectMutator{typeValue: objectMutatorTypeValue, ref: ref}
 }
 
 func (a *testActivation) ResolveName(name string) (any, bool) {

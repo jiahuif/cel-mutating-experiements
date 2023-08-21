@@ -1,0 +1,56 @@
+# "actual" container
+variables:
+- name: existingContainer
+  expression: object.spec.template.containers.filter(c, c.name.value() == 'sidecar')
+- name: targetContainer
+  expression: 'existingContainer.size() == 0 ? object.spec.template.containers.append() : existingContainer'
+- name: envTemplate
+  expression: '[{"name": "FOO", "value": "BAR"}, {"name": "FROM_CONFIG", "configMapKeyRef": {"name": "demo-config", "key": "demo-key"}}]'
+- name: resourceTemplate
+  expression: '{"memory": "128Mi", "cpu": "250m"}'
+- name: containerTemplate
+  expression: >
+    {
+      "name": "sidecar",
+      "image": "example.com/sidecar:v1",
+      "env": variables.envTemplate,
+      "resource": {
+        "limits": variables.resourceTemplate,
+        "requests": variables.resourceTemplate
+      }
+    }
+mutation:
+- condition: true # optional
+  expressions:
+  - variables.targetContainer.merge(variables.containerTemplate)
+---
+variables:
+- name: existingContainer
+  expression: object.spec.template.containers.filter(c, c.name.value() == 'sidecar')
+- name: targetContainer
+  expression: object.spec.template.containers.append()
+- name: targetEnvs
+  expression: variables.targetContainer.env.clear().resize(2)
+- name: simpleEnv
+  expression: variables.targetEnvs[0]
+- name: envFromConfig
+  expression: variables.targetEnvs[1]
+- name: configMapKeyRef
+  expression: variables.envFromConfig.configMapKeyRef
+- name: resourceLimits
+  expression: variables.targetContainer.resource.limits.clear()
+- name: resourceRequests
+  expression: variables.targetContainer.resource.requests.clear()
+mutation:
+- condition: existingContainer.size() == 0
+  expressions:
+  - variables.targetContainer.image.set('example.com/sidecar:v1')
+  - variables.simpleEnv.name.set('FOO')
+  - variables.simpleEnv.value.set('BAR')
+  - variables.envFromConfig.name.set('FROM_CONFIG')
+  - variables.configMapKeyRef.name.set('demo-config')
+  - variables.configMapKeyRef.key.set('demo-key')
+  - variables.resourceLimits["memory"].set("128Mi")
+  - variables.resourceLimits["cpu"].set("250m")
+  - variables.resourceRequests["memory"].set("128Mi")
+  - variables.resourceRequests["cpu"].set("250m")

@@ -2,11 +2,14 @@ module github.com/jiahuif/cel-mutating-experiments
 
 go 1.20
 
+// Pick up changes of and before k/k#120060
 require (
-	github.com/google/cel-go v0.16.0
-	k8s.io/apimachinery v0.28.0
-	k8s.io/apiserver v0.28.0
+	k8s.io/apimachinery v0.29.0-alpha.0.0.20230829153926-1629459297c7
+	k8s.io/apiserver v0.0.0-20230830121326-dfbca900c7a9
 )
+
+// should match that of Kubernetes
+require github.com/google/cel-go v0.17.6
 
 require (
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
@@ -40,7 +43,7 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230525234035-dd9d682886f9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

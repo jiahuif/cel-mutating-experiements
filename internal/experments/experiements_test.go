@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/interpreter"
 
@@ -14,55 +15,32 @@ import (
 	apiservercel "k8s.io/apiserver/pkg/cel"
 	"k8s.io/apiserver/pkg/cel/environment"
 	"k8s.io/apiserver/pkg/cel/lazy"
+
+	"github.com/jiahuif/cel-mutating-experiments/pkg/mutator"
 )
 
 func TestDeploymentSidecarContainer(t *testing.T) {
-	/*
-		variables:
-		- name: existingContainer
-			expression: object.spec.template.containers.filter(c, c.name.value() == 'sidecar')
-		- name: targetContainer
-			expression: object.spec.template.containers.append()
-		- name: targetEnvs
-			expression: variables.targetContainer.env.clear().resize(2)
-		- name: simpleEnv
-			expression: variables.targetEnvs[0]
-		- name: envFromConfig
-			expression: variables.targetEnvs[1]
-		- name: configMapKeyRef
-			expression: variables.envFromConfig.configMapKeyRef
-		- name: resourceLimits
-			expression: variables.targetContainer.resource.limits.clear()
-		- name: resourceRequests
-			expression: variables.targetContainer.resource.requests.clear()
-		mutation:
-		- condition: existingContainer.size() == 0
-			expressions:
-			- variables.targetContainer.image.set('example.com/sidecar:v1')
-			- variables.simpleEnv.name.set('FOO')
-			- variables.simpleEnv.value.set('BAR')
-			- variables.envFromConfig.name.set('FROM_CONFIG')
-			- variables.configMapKeyRef.name.set('demo-config')
-			- variables.configMapKeyRef.key.set('demo-key')
-			- variables.resourceLimits["memory"].set("128Mi")
-			- variables.resourceLimits["cpu"].set("250m")
-			- variables.resourceRequests["memory"].set("128Mi")
-			- variables.resourceRequests["cpu"].set("250m")
-	*/
 	env, err := buildTestEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
 	deployment := createDeployment()
 	variables := lazy.NewMapValue(variablesType)
-	mutator := newObjectMutator(deployment.Object)
+	rootObjectMutator := mutator.NewRootObjectMutator(deployment.Object)
 	activation := &testActivation{
 		variables: variables,
-		object:    mutator,
+		object:    rootObjectMutator,
 	}
-	_, err = compileAndRun(env, activation, "object")
+	_, err = compileAndRun(env, activation, `object.spec.template.spec.merge({"replicas": 3})`)
 	if err != nil {
 		t.Fatal(err)
+	}
+	v, err := compileAndRun(env, activation, "object.spec.template.spec.replicas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if i, ok := v.Value().(int64); !ok || i != 3 {
+		t.Errorf("want 3 but got %v", v.Value())
 	}
 }
 
@@ -94,6 +72,18 @@ func buildTestEnv() (*cel.Env, error) {
 			EnvOptions: []cel.EnvOption{
 				cel.Variable("variables", variablesType.CelType()),
 				cel.Variable("object", cel.DynType),
+				cel.Function("merge",
+					cel.MemberOverload("mutator_object_merge",
+						[]*cel.Type{mutator.ObjectMutatorType, cel.AnyType},
+						mutator.ObjectMutatorType,
+						cel.BinaryBinding(func(lhs ref.Val, rhs ref.Val) ref.Val {
+							mutator, ok := lhs.(mutator.Interface)
+							if !ok {
+								return types.NoSuchOverloadErr()
+							}
+							return mutator.Merge(rhs.Value())
+						}),
+					)),
 			},
 			DeclTypes: []*apiservercel.DeclType{
 				variablesType,
@@ -107,7 +97,6 @@ func buildTestEnv() (*cel.Env, error) {
 }
 
 var variablesType = apiservercel.NewMapType(apiservercel.StringType, apiservercel.AnyType, 0)
-var objectMutatorType = apiservercel.NewObjectType("io.x-k8s.ObjectMutator", map[string]*apiservercel.DeclField{})
 
 func init() {
 	variablesType.Fields = make(map[string]*apiservercel.DeclField)

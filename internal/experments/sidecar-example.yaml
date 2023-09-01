@@ -1,3 +1,57 @@
+# sidecar example
+apiVersion: admissionregistration.k8s.io/v1alpha1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: "add-sidecar.policy.example.com"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   ["apps"]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["deployments"]
+  variables:
+  - name: envTemplate
+    expression: '[{"name": "FOO", "value": "BAR"}, {"name": "FROM_CONFIG", "configMapKeyRef": {"name": "demo-config", "key": "demo-key"}}]'
+  - name: resourceTemplate
+    expression: '{"memory": "128Mi", "cpu": "250m"}'
+  - name: containerTemplate
+    expression: >
+      {
+        "name": "sidecar",
+        "image": "example.com/sidecar:v1",
+        "env": variables.envTemplate,
+        "resource": {
+          "limits": variables.resourceTemplate,
+          "requests": variables.resourceTemplate
+        }
+      }
+  mutation:
+  - condition: true # optional
+    expressions:
+    - object.spec.template.containers.apply([variables.containerTemplate])
+
+---
+# remove a label example
+variables:
+mutation:
+- condition: '"forbidden.example.com" in object.metadata.labels'
+  expressions:
+  - object.metadata.labels['forbidden'].remove()
+---
+# completely reset resources example
+variables:
+- name: appContainers
+  expression: object.spec.template.containers.filter(c, c.name.value() == 'app')
+- name: appContainer
+  expression: 'variables.appContainers.size() == 0 ? null : variables.appContainers[0]'
+mutation:
+- condition: 'variables.appContainers.size() > 0'
+  expressions:
+  - 'variables.appContainer.resource.clear().apply({"limits":{"cpu": "250m"}})'
+---
+
 # "actual" container
 variables:
 - name: existingContainer

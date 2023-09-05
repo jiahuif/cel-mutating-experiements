@@ -16,10 +16,10 @@ import (
 	"k8s.io/apiserver/pkg/cel/environment"
 	"k8s.io/apiserver/pkg/cel/lazy"
 
-	"github.com/jiahuif/cel-mutating-experiments/pkg/mutator"
+	"github.com/jiahuif/cel-mutating-experiments/v1/pkg/mutator"
 )
 
-func TestDeploymentSidecarContainer(t *testing.T) {
+func TestDeploymentModifyReplicas(t *testing.T) {
 	env, err := buildTestEnv()
 	if err != nil {
 		t.Fatal(err)

@@ -1,47 +1,82 @@
 package experments
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"reflect"
 	"testing"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/interpreter"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/yaml"
+
 	"k8s.io/apimachinery/pkg/util/version"
 	apiservercel "k8s.io/apiserver/pkg/cel"
 	"k8s.io/apiserver/pkg/cel/environment"
 	"k8s.io/apiserver/pkg/cel/lazy"
 
+	"github.com/jiahuif/cel-mutating-experiments/v1/pkg/api"
 	"github.com/jiahuif/cel-mutating-experiments/v1/pkg/mutator"
 )
 
-func TestDeploymentModifyReplicas(t *testing.T) {
-	env, err := buildTestEnv()
+func unmarshallTestData(t *testing.T, fileName string, v any) {
+	f, err := os.Open(fileName)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("fail to load test data: %v", err)
 	}
-	deployment := createDeployment()
+	defer f.Close()
+	b, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatalf("fail to read test data: %v", err)
+	}
+	err = yaml.Unmarshal(b, v)
+	if err != nil {
+		t.Fatalf("fail to parse test data: %v", err)
+	}
+}
+
+func runTestFromFile(t *testing.T, baseName string) {
+	deployFileName := fmt.Sprintf("v1/internal/experiments/%s/deploy.yaml")
+	mutationFileName := fmt.Sprintf("v1/internal/experiments/%s/mutation.yaml")
+	expectedFileName := fmt.Sprintf("v1/internal/experiments/%s/expected.yaml")
+	if _, err := os.Stat(deployFileName); err != nil {
+		t.Fatalf("missing input for test case %q", baseName)
+	}
 	variables := lazy.NewMapValue(variablesType)
-	rootObjectMutator := mutator.NewRootObjectMutator(deployment.Object)
+	deploy := new(unstructured.Unstructured)
+	unmarshallTestData(t, deployFileName, deploy)
+	rootObjectMutator := mutator.NewRootObjectMutator(deploy.Object)
+	mutation := new(api.MutatingAdmissionPolicy)
+	unmarshallTestData(t, mutationFileName, mutation)
+	expectedDeploy := new(unstructured.Unstructured)
+	unmarshallTestData(t, expectedFileName, expectedDeploy)
 	activation := &testActivation{
 		variables: variables,
 		object:    rootObjectMutator,
 	}
-	_, err = compileAndRun(env, activation, `object.spec.template.spec.merge({"replicas": 3})`)
+	env, err := buildTestEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := compileAndRun(env, activation, "object.spec.template.spec.replicas")
-	if err != nil {
-		t.Fatal(err)
+	for _, m := range mutation.Mutation {
+		for _, e := range m.Expressions {
+			_, err := compileAndRun(env, activation, e)
+			if err != nil {
+				t.Fatalf("fail to eval: %v", err)
+			}
+		}
 	}
-	if i, ok := v.Value().(int64); !ok || i != 3 {
-		t.Errorf("want 3 but got %v", v.Value())
+	if !reflect.DeepEqual(deploy.Object, expectedDeploy) {
+		t.Errorf("wrong result, expected %#v but got %#v", expectedDeploy, deploy.Object)
 	}
+}
+
+func TestSimpleMerge(t *testing.T) {
+	runTestFromFile(t, "mergesimple")
 }
 
 type testActivation struct {
@@ -116,56 +151,3 @@ func (a *testActivation) ResolveName(name string) (any, bool) {
 func (a *testActivation) Parent() interpreter.Activation {
 	return nil
 }
-
-func createDeployment() *unstructured.Unstructured {
-	u := new(unstructured.Unstructured)
-	err := json.Unmarshal([]byte(deploymentJSON), u)
-	if err != nil {
-		panic(err)
-	}
-	return u
-}
-
-// deploymentJSON is obtained from
-// kubectl -n test create deploy nginx --image=nginx -o=json --dry-run=client
-const deploymentJSON = `
-{
-    "kind": "Deployment",
-    "apiVersion": "apps/v1",
-    "metadata": {
-        "name": "nginx",
-        "namespace": "test",
-        "creationTimestamp": null,
-        "labels": {
-            "app": "nginx"
-        }
-    },
-    "spec": {
-        "replicas": 1,
-        "selector": {
-            "matchLabels": {
-                "app": "nginx"
-            }
-        },
-        "template": {
-            "metadata": {
-                "creationTimestamp": null,
-                "labels": {
-                    "app": "nginx"
-                }
-            },
-            "spec": {
-                "containers": [
-                    {
-                        "name": "nginx",
-                        "image": "nginx",
-                        "resources": {}
-                    }
-                ]
-            }
-        },
-        "strategy": {}
-    },
-    "status": {}
-}
-`

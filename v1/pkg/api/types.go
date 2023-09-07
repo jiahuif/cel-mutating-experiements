@@ -1,7 +1,9 @@
 package api
 
 type MutatingAdmissionPolicy struct {
-	Mutation []struct {
-		Expressions []string
-	}
+	Spec struct {
+		Mutation []struct {
+			Expressions []string `json:"expressions"`
+		} `json:"mutation"`
+	} `json:"spec"`
 }

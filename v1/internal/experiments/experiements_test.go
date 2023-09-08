@@ -1,4 +1,4 @@
-package experments
+package experiments
 
 import (
 	"fmt"
@@ -39,11 +39,25 @@ func unmarshallTestData(t *testing.T, fileName string, v any) {
 	}
 }
 
+func guessTestDataFileNames(baseName string) (deploy, mutation, expected string, err error) {
+	prefix := "testdata"
+	if _, err := os.Stat(fmt.Sprintf("%s/%s/deploy.yaml", prefix, baseName)); err == nil {
+		return fmt.Sprintf("%s/%s/deploy.yaml", prefix, baseName),
+			fmt.Sprintf("%s/%s/mutation.yaml", prefix, baseName),
+			fmt.Sprintf("%s/%s/expected.yaml", prefix, baseName), nil
+	}
+	prefix = "v1/internal/experiments/testdata"
+	if _, err := os.Stat(fmt.Sprintf("%s/%s/deploy.yaml", prefix, baseName)); err == nil {
+		return fmt.Sprintf("%s/%s/deploy.yaml", prefix, baseName),
+			fmt.Sprintf("%s/%s/mutation.yaml", prefix, baseName),
+			fmt.Sprintf("%s/%s/expected.yaml", prefix, baseName), nil
+	}
+	return "", "", "", fmt.Errorf("unable to locate test data for %q", baseName)
+}
+
 func runTestFromFile(t *testing.T, baseName string) {
-	deployFileName := fmt.Sprintf("v1/internal/experiments/%s/deploy.yaml")
-	mutationFileName := fmt.Sprintf("v1/internal/experiments/%s/mutation.yaml")
-	expectedFileName := fmt.Sprintf("v1/internal/experiments/%s/expected.yaml")
-	if _, err := os.Stat(deployFileName); err != nil {
+	deployFileName, mutationFileName, expectedFileName, err := guessTestDataFileNames(baseName)
+	if err != nil {
 		t.Fatalf("missing input for test case %q", baseName)
 	}
 	variables := lazy.NewMapValue(variablesType)
@@ -62,7 +76,7 @@ func runTestFromFile(t *testing.T, baseName string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range mutation.Mutation {
+	for _, m := range mutation.Spec.Mutation {
 		for _, e := range m.Expressions {
 			_, err := compileAndRun(env, activation, e)
 			if err != nil {
@@ -70,13 +84,13 @@ func runTestFromFile(t *testing.T, baseName string) {
 			}
 		}
 	}
-	if !reflect.DeepEqual(deploy.Object, expectedDeploy) {
-		t.Errorf("wrong result, expected %#v but got %#v", expectedDeploy, deploy.Object)
+	if !reflect.DeepEqual(deploy, expectedDeploy) {
+		t.Errorf("wrong result, expected %v\n but got %v\n", expectedDeploy, deploy.Object)
 	}
 }
 
 func TestSimpleMerge(t *testing.T) {
-	runTestFromFile(t, "mergesimple")
+	runTestFromFile(t, "simplemerge")
 }
 
 type testActivation struct {

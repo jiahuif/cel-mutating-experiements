@@ -21,6 +21,14 @@ type objectMutator struct {
 	abstractMutator
 }
 
+func (o *objectMutator) RemoveChild(identifier any) error {
+	if s, ok := identifier.(string); ok {
+		delete(o.object, s)
+		return nil
+	}
+	return fmt.Errorf("identifier has wrong type, expect string but got %t", identifier)
+}
+
 func (o *objectMutator) ConvertToNative(typeDesc reflect.Type) (any, error) {
 	return nil, fmt.Errorf("disallowed conversion from %q to %q", ObjectMutatorType.TypeName(), typeDesc.Name())
 }
@@ -44,6 +52,7 @@ func (o *objectMutator) Value() any {
 }
 
 var _ Interface = (*objectMutator)(nil)
+var _ Container = (*objectMutator)(nil)
 
 func (o *objectMutator) Get(index ref.Val) ref.Val {
 	f, ok := index.(types.String)
@@ -80,6 +89,17 @@ func (o *objectMutator) Merge(rhs any) ref.Val {
 	return mergeObject(o.object, patch)
 }
 
+func (o *objectMutator) Remove() ref.Val {
+	if container, ok := o.Parent().(Container); ok && o.Identifier() != nil {
+		err := container.RemoveChild(o.Identifier())
+		if err != nil {
+			return types.WrapErr(err)
+		}
+		return types.NullValue
+	}
+	return types.NoSuchOverloadErr()
+}
+
 func NewRootObjectMutator(root map[string]any) Interface {
 	mutator := new(objectMutator)
 	mutator.object = root
@@ -100,6 +120,7 @@ func NewObjectMutator(parent Interface, key string) (Interface, error) {
 		return nil, fmt.Errorf("%w: %q", ErrNotObject, key)
 	}
 	mutator := new(objectMutator)
+	mutator.parent = parent
 	mutator.object = object
 	mutator.identifier = key
 	return mutator, nil

@@ -18,4 +18,13 @@ type Interface interface {
 	// with the given patch. Returns whether the object has been changed, or any
 	// error.
 	Merge(patch any) ref.Val
+
+	// Remove removes the referring object from its parent.
+	// Returns null, or an error.
+	Remove() ref.Val
+}
+
+type Container interface {
+	// RemoveChild removes a child that is identified by the given identifier.
+	RemoveChild(identifier any) error
 }

@@ -48,4 +48,8 @@ func (a *abstractMutator) Merge(patch any) ref.Val {
 	return types.NoSuchOverloadErr()
 }
 
+func (a *abstractMutator) Remove() ref.Val {
+	return types.NoSuchOverloadErr()
+}
+
 var _ Interface = (*abstractMutator)(nil)

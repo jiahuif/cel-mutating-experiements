@@ -93,6 +93,10 @@ func TestSimpleMerge(t *testing.T) {
 	runTestFromFile(t, "simplemerge")
 }
 
+func TestSimpleRemove(t *testing.T) {
+	runTestFromFile(t, "simpleremove")
+}
+
 type testActivation struct {
 	variables *lazy.MapValue
 	object    any
@@ -131,6 +135,18 @@ func buildTestEnv() (*cel.Env, error) {
 								return types.NoSuchOverloadErr()
 							}
 							return mutator.Merge(rhs.Value())
+						}),
+					)),
+				cel.Function("remove",
+					cel.MemberOverload("mutator_object_remove",
+						[]*cel.Type{mutator.ObjectMutatorType},
+						mutator.ObjectMutatorType,
+						cel.UnaryBinding(func(lhs ref.Val) ref.Val {
+							mutator, ok := lhs.(mutator.Interface)
+							if !ok {
+								return types.NoSuchOverloadErr()
+							}
+							return mutator.Remove()
 						}),
 					)),
 			},

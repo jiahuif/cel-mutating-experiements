@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/interpreter"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -20,6 +19,7 @@ import (
 	"k8s.io/apiserver/pkg/cel/lazy"
 
 	"github.com/jiahuif/cel-mutating-experiments/v1/pkg/api"
+	mutatingcel "github.com/jiahuif/cel-mutating-experiments/v1/pkg/cel"
 	"github.com/jiahuif/cel-mutating-experiments/v1/pkg/mutator"
 )
 
@@ -122,34 +122,10 @@ func buildTestEnv() (*cel.Env, error) {
 	envSet, err := environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()).Extend(
 		environment.VersionedOptions{
 			IntroducedVersion: version.MajorMinor(1, 28),
-			EnvOptions: []cel.EnvOption{
+			EnvOptions: append([]cel.EnvOption{
 				cel.Variable("variables", variablesType.CelType()),
 				cel.Variable("object", cel.DynType),
-				cel.Function("merge",
-					cel.MemberOverload("mutator_object_merge",
-						[]*cel.Type{mutator.ObjectMutatorType, cel.AnyType},
-						mutator.ObjectMutatorType,
-						cel.BinaryBinding(func(lhs ref.Val, rhs ref.Val) ref.Val {
-							mutator, ok := lhs.(mutator.Interface)
-							if !ok {
-								return types.NoSuchOverloadErr()
-							}
-							return mutator.Merge(rhs.Value())
-						}),
-					)),
-				cel.Function("remove",
-					cel.MemberOverload("mutator_object_remove",
-						[]*cel.Type{mutator.ObjectMutatorType},
-						mutator.ObjectMutatorType,
-						cel.UnaryBinding(func(lhs ref.Val) ref.Val {
-							mutator, ok := lhs.(mutator.Interface)
-							if !ok {
-								return types.NoSuchOverloadErr()
-							}
-							return mutator.Remove()
-						}),
-					)),
-			},
+			}, mutatingcel.EnvOpts()...),
 			DeclTypes: []*apiservercel.DeclType{
 				variablesType,
 			},

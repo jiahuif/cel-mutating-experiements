@@ -1,4 +1,4 @@
-package experiments
+package integration
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ import (
 	"k8s.io/apiserver/pkg/cel/lazy"
 
 	"github.com/jiahuif/cel-mutating-experiments/v1/pkg/api"
-	mutatingcel "github.com/jiahuif/cel-mutating-experiments/v1/pkg/cel"
+	mutatorcel "github.com/jiahuif/cel-mutating-experiments/v1/pkg/cel"
 	"github.com/jiahuif/cel-mutating-experiments/v1/pkg/mutator"
 )
 
@@ -46,7 +46,7 @@ func guessTestDataFileNames(baseName string) (deploy, mutation, expected string,
 			fmt.Sprintf("%s/%s/mutation.yaml", prefix, baseName),
 			fmt.Sprintf("%s/%s/expected.yaml", prefix, baseName), nil
 	}
-	prefix = "v1/internal/experiments/testdata"
+	prefix = "../../testdata"
 	if _, err := os.Stat(fmt.Sprintf("%s/%s/deploy.yaml", prefix, baseName)); err == nil {
 		return fmt.Sprintf("%s/%s/deploy.yaml", prefix, baseName),
 			fmt.Sprintf("%s/%s/mutation.yaml", prefix, baseName),
@@ -125,7 +125,7 @@ func buildTestEnv() (*cel.Env, error) {
 			EnvOptions: append([]cel.EnvOption{
 				cel.Variable("variables", variablesType.CelType()),
 				cel.Variable("object", cel.DynType),
-			}, mutatingcel.EnvOpts()...),
+			}, mutatorcel.EnvOpts()...),
 			DeclTypes: []*apiservercel.DeclType{
 				variablesType,
 			},

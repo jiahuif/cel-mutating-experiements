@@ -85,7 +85,7 @@ func runTestFromFile(t *testing.T, baseName string) {
 		}
 	}
 	if !reflect.DeepEqual(deploy, expectedDeploy) {
-		t.Errorf("wrong result, expected %v\n but got %v\n", expectedDeploy, deploy.Object)
+		t.Errorf("wrong result, expected\n%v\n but got \n%v\n", expectedDeploy, deploy.Object)
 	}
 }
 

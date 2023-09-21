@@ -137,10 +137,42 @@ func mergeObject(lhs map[string]any, rhs map[ref.Val]ref.Val) ref.Val {
 		val := rhs[key].Value()
 		switch val.(type) {
 		case []ref.Val:
-			return types.NewErr("array merger not ready")
+			return types.NewErr("array cannot merge with object")
+		case map[ref.Val]ref.Val:
+			lhs[name] = refMapToNative(val.(map[ref.Val]ref.Val))
 		default:
 			lhs[name] = val
 		}
 	}
 	return types.Null(0)
+}
+
+func refMapToNative(refMap map[ref.Val]ref.Val) map[string]any {
+	ret := make(map[string]any)
+	for kv, vv := range refMap {
+		v := vv.Value()
+		switch v.(type) {
+		case []ref.Val:
+			v = refSliceToNative(v.([]ref.Val))
+		case map[ref.Val]ref.Val:
+			v = refMapToNative(v.(map[ref.Val]ref.Val))
+		}
+		ret[kv.Value().(string)] = v
+	}
+	return ret
+}
+
+func refSliceToNative(refSlice []ref.Val) []any {
+	ret := make([]any, 0, len(refSlice))
+	for _, vv := range refSlice {
+		v := vv.Value()
+		switch v.(type) {
+		case []ref.Val:
+			v = refSliceToNative(v.([]ref.Val))
+		case map[ref.Val]ref.Val:
+			v = refMapToNative(v.(map[ref.Val]ref.Val))
+		}
+		ret = append(ret, v)
+	}
+	return ret
 }

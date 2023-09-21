@@ -97,6 +97,10 @@ func TestSimpleRemove(t *testing.T) {
 	runTestFromFile(t, "simpleremove")
 }
 
+func TestObjectMerge(t *testing.T) {
+	runTestFromFile(t, "objectmerge")
+}
+
 type testActivation struct {
 	variables *lazy.MapValue
 	object    any

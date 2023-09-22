@@ -12,13 +12,21 @@ import (
 
 var ObjectMutatorType = cel.ObjectType("kubernetes.ObjectMutator", traits.IndexerType)
 
-var ErrNotObject = fmt.Errorf("not an object")
+var ErrNotObject = fmt.Errorf("not an list")
 var ErrKeyNotFound = fmt.Errorf("key not found")
 
 type objectMutator struct {
 	object map[string]any
 
 	abstractMutator
+}
+
+func (o *objectMutator) Child(identifier any) (any, bool) {
+	if s, ok := identifier.(string); ok {
+		c, ok := o.object[s]
+		return c, ok
+	}
+	return nil, false
 }
 
 func (o *objectMutator) RemoveChild(identifier any) error {
@@ -62,20 +70,12 @@ func (o *objectMutator) Get(index ref.Val) ref.Val {
 	key := f.Value().(string)
 	if v, exists := o.object[f.Value().(string)]; exists {
 		switch v.(type) {
-		case string:
-			return types.String(v.(string))
-		case int:
-			return types.Int(v.(int))
-		case int64:
-			return types.Int(v.(int64))
 		case map[string]any:
-			mutator, err := NewObjectMutator(o, key)
-			if err != nil {
-				return types.WrapErr(err)
-			}
-			return mutator
+			return mutatorOf(v, o, key)
+		case []any:
+			return mutatorOf(v, o, key)
 		default:
-			return types.NewErr("missing mutator for: %v", v)
+			return types.NewErr("missing mutator for %t", v)
 		}
 	}
 	return types.NewErr("no such key: %s", f)
@@ -106,16 +106,12 @@ func NewRootObjectMutator(root map[string]any) Interface {
 	return mutator
 }
 
-func NewObjectMutator(parent Interface, key string) (Interface, error) {
-	parentMutator, ok := parent.(*objectMutator)
-	if !ok {
-		return nil, ErrNotObject
-	}
-	field, ok := parentMutator.object[key]
+func NewObjectMutator(parent Container, key any) (Interface, error) {
+	child, ok := parent.Child(key)
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", ErrKeyNotFound, key)
 	}
-	object, ok := field.(map[string]any)
+	object, ok := child.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", ErrNotObject, key)
 	}
@@ -137,7 +133,7 @@ func mergeObject(lhs map[string]any, rhs map[ref.Val]ref.Val) ref.Val {
 		val := rhs[key].Value()
 		switch val.(type) {
 		case []ref.Val:
-			return types.NewErr("array cannot merge with object")
+			return types.NewErr("array cannot merge with list")
 		case map[ref.Val]ref.Val:
 			lhs[name] = refMapToNative(val.(map[ref.Val]ref.Val))
 		default:

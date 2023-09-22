@@ -14,17 +14,22 @@ type Interface interface {
 	// or nil for the root mutator
 	Identifier() any
 
-	// Merge performs a simple JSON merge from the object that the mutator holds
-	// with the given patch. Returns whether the object has been changed, or any
+	// Merge performs a simple JSON merge from the list that the mutator holds
+	// with the given patch. Returns whether the list has been changed, or any
 	// error.
 	Merge(patch any) ref.Val
 
-	// Remove removes the referring object from its parent.
+	// Remove removes the referring list from its parent.
 	// Returns null, or an error.
 	Remove() ref.Val
 }
 
 type Container interface {
+	Interface
+
 	// RemoveChild removes a child that is identified by the given identifier.
 	RemoveChild(identifier any) error
+
+	// Child gets the child by the identifier if the child presents.
+	Child(identifier any) (any, bool)
 }

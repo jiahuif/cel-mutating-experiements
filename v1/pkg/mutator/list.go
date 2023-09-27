@@ -20,6 +20,22 @@ type listMutator struct {
 	abstractMutator
 }
 
+func NewListMutator(parent Container, key any) (Interface, error) {
+	child, ok := parent.Child(key)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrKeyNotFound, key)
+	}
+	list, ok := child.([]any)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrNotObject, key)
+	}
+	mutator := new(listMutator)
+	mutator.parent = parent
+	mutator.list = list
+	mutator.identifier = key
+	return mutator, nil
+}
+
 func (l *listMutator) RemoveChild(identifier any) error {
 	if i, ok := identifier.(int); ok {
 		if i > len(l.list) {

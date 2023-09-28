@@ -14,7 +14,13 @@ func mutatorOf(v any, parent Container, key any) ref.Val {
 	case int64:
 		return types.Int(v.(int64))
 	case map[string]any:
-		mutator, err := NewObjectMutator(parent, key.(string))
+		mutator, err := NewObjectMutator(parent, key)
+		if err != nil {
+			return types.WrapErr(err)
+		}
+		return mutator
+	case []any:
+		mutator, err := NewListMutator(parent, key)
 		if err != nil {
 			return types.WrapErr(err)
 		}

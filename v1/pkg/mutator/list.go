@@ -76,3 +76,27 @@ func (l *listMutator) Get(index ref.Val) ref.Val {
 	}
 	return types.NewErr("array index out of bound: %d", i)
 }
+
+func (l *listMutator) Merge(rhs any) ref.Val {
+	patch, ok := rhs.([]ref.Val)
+	if !ok {
+		return types.NoSuchOverloadErr()
+	}
+	return l.mergeList(patch)
+}
+
+func (l *listMutator) mergeList(rhs []ref.Val) ref.Val {
+	for _, vv := range rhs {
+		var v any
+		switch vv.Value().(type) {
+		case []ref.Val:
+			v = refSliceToNative(vv.Value().([]ref.Val))
+		case map[ref.Val]ref.Val:
+			v = refMapToNative(vv.Value().(map[ref.Val]ref.Val))
+		default:
+			v = vv.Value()
+		}
+		l.list = append(l.list, v)
+	}
+	return types.NullValue
+}

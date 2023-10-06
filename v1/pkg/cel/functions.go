@@ -8,8 +8,10 @@ import (
 	"github.com/jiahuif/cel-mutating-experiments/v1/pkg/mutator"
 )
 
-const overloadNameMerge = "mutator_object_merge"
-const overloadNameRemove = "mutator_object_remove"
+const overloadNameObjectMerge = "mutator_object_merge"
+const overloadNameObjectRemove = "mutator_object_remove"
+const overloadNameListMerge = "mutator_list_merge"
+const overloadNameListRemove = "mutator_list_remove"
 
 func MergeOperation(lhs, rhs ref.Val) ref.Val {
 	mutator, ok := lhs.(mutator.Interface)
@@ -30,12 +32,17 @@ func RemoveOperation(lhs ref.Val) ref.Val {
 func EnvOpts() []cel.EnvOption {
 	return []cel.EnvOption{
 		cel.Function("merge",
-			cel.MemberOverload(overloadNameMerge,
+			cel.MemberOverload(overloadNameObjectMerge,
 				[]*cel.Type{mutator.ObjectMutatorType, cel.AnyType},
 				mutator.ObjectMutatorType, cel.BinaryBinding(MergeOperation)),
 		),
+		cel.Function("merge",
+			cel.MemberOverload(overloadNameListMerge,
+				[]*cel.Type{mutator.ListMutatorType, cel.AnyType},
+				mutator.ListMutatorType, cel.BinaryBinding(MergeOperation)),
+		),
 		cel.Function("remove",
-			cel.MemberOverload(overloadNameRemove,
+			cel.MemberOverload(overloadNameObjectRemove,
 				[]*cel.Type{mutator.ObjectMutatorType},
 				mutator.ObjectMutatorType,
 				cel.UnaryBinding(RemoveOperation),

@@ -21,6 +21,14 @@ type objectMutator struct {
 	abstractMutator
 }
 
+func (o *objectMutator) SetChild(identifier any, value any) error {
+	if s, ok := identifier.(string); ok {
+		o.object[s] = value
+		return nil
+	}
+	return fmt.Errorf("identifier has wrong type, expect string but got %t", identifier)
+}
+
 func (o *objectMutator) Child(identifier any) (any, bool) {
 	if s, ok := identifier.(string); ok {
 		c, ok := o.object[s]

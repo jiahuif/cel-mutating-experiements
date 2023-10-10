@@ -32,4 +32,7 @@ type Container interface {
 
 	// Child gets the child by the identifier if the child presents.
 	Child(identifier any) (any, bool)
+
+	// SetChild replaces the child by the identifier.
+	SetChild(identifier any, value any) error
 }

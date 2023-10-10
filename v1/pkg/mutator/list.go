@@ -85,6 +85,20 @@ func (l *listMutator) Merge(rhs any) ref.Val {
 	return l.mergeList(patch)
 }
 
+func (l *listMutator) Type() ref.Type {
+	return ListMutatorType
+}
+
+func (l *listMutator) SetChild(identifier any, value any) error {
+	if i, ok := identifier.(int); ok {
+		if i > len(l.list) {
+			return ErrListIndexOutOfBound
+		}
+		l.list[i] = value
+		return nil
+	}
+	return fmt.Errorf("expect index to be an int, but got a %t", identifier)
+}
 func (l *listMutator) mergeList(rhs []ref.Val) ref.Val {
 	for _, vv := range rhs {
 		var v any
@@ -97,6 +111,10 @@ func (l *listMutator) mergeList(rhs []ref.Val) ref.Val {
 			v = vv.Value()
 		}
 		l.list = append(l.list, v)
+	}
+	err := l.Parent().(Container).SetChild(l.Identifier(), l.list)
+	if err != nil {
+		return types.WrapErr(err)
 	}
 	return types.NullValue
 }

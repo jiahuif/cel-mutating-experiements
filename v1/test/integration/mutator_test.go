@@ -101,6 +101,10 @@ func TestObjectMerge(t *testing.T) {
 	runTestFromFile(t, "objectmerge")
 }
 
+func TestListMerge(t *testing.T) {
+	runTestFromFile(t, "listmerge")
+}
+
 type testActivation struct {
 	variables *lazy.MapValue
 	object    any

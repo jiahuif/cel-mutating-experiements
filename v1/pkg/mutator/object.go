@@ -12,13 +12,37 @@ import (
 
 var ObjectMutatorType = cel.ObjectType("kubernetes.ObjectMutator", traits.IndexerType)
 
-var ErrNotObject = fmt.Errorf("not an object")
+var ErrNotObject = fmt.Errorf("not an list")
 var ErrKeyNotFound = fmt.Errorf("key not found")
 
 type objectMutator struct {
 	object map[string]any
 
 	abstractMutator
+}
+
+func (o *objectMutator) SetChild(identifier any, value any) error {
+	if s, ok := identifier.(string); ok {
+		o.object[s] = value
+		return nil
+	}
+	return fmt.Errorf("identifier has wrong type, expect string but got %t", identifier)
+}
+
+func (o *objectMutator) Child(identifier any) (any, bool) {
+	if s, ok := identifier.(string); ok {
+		c, ok := o.object[s]
+		return c, ok
+	}
+	return nil, false
+}
+
+func (o *objectMutator) RemoveChild(identifier any) error {
+	if s, ok := identifier.(string); ok {
+		delete(o.object, s)
+		return nil
+	}
+	return fmt.Errorf("identifier has wrong type, expect string but got %t", identifier)
 }
 
 func (o *objectMutator) ConvertToNative(typeDesc reflect.Type) (any, error) {
@@ -44,6 +68,7 @@ func (o *objectMutator) Value() any {
 }
 
 var _ Interface = (*objectMutator)(nil)
+var _ Container = (*objectMutator)(nil)
 
 func (o *objectMutator) Get(index ref.Val) ref.Val {
 	f, ok := index.(types.String)
@@ -53,20 +78,12 @@ func (o *objectMutator) Get(index ref.Val) ref.Val {
 	key := f.Value().(string)
 	if v, exists := o.object[f.Value().(string)]; exists {
 		switch v.(type) {
-		case string:
-			return types.String(v.(string))
-		case int:
-			return types.Int(v.(int))
-		case int64:
-			return types.Int(v.(int64))
 		case map[string]any:
-			mutator, err := NewObjectMutator(o, key)
-			if err != nil {
-				return types.WrapErr(err)
-			}
-			return mutator
+			return mutatorOf(v, o, key)
+		case []any:
+			return mutatorOf(v, o, key)
 		default:
-			return types.NewErr("missing mutator for: %v", v)
+			return types.NewErr("missing mutator for %t", v)
 		}
 	}
 	return types.NewErr("no such key: %s", f)
@@ -80,26 +97,34 @@ func (o *objectMutator) Merge(rhs any) ref.Val {
 	return mergeObject(o.object, patch)
 }
 
+func (o *objectMutator) Remove() ref.Val {
+	if container, ok := o.Parent().(Container); ok && o.Identifier() != nil {
+		err := container.RemoveChild(o.Identifier())
+		if err != nil {
+			return types.WrapErr(err)
+		}
+		return types.NullValue
+	}
+	return types.NoSuchOverloadErr()
+}
+
 func NewRootObjectMutator(root map[string]any) Interface {
 	mutator := new(objectMutator)
 	mutator.object = root
 	return mutator
 }
 
-func NewObjectMutator(parent Interface, key string) (Interface, error) {
-	parentMutator, ok := parent.(*objectMutator)
-	if !ok {
-		return nil, ErrNotObject
-	}
-	field, ok := parentMutator.object[key]
+func NewObjectMutator(parent Container, key any) (Interface, error) {
+	child, ok := parent.Child(key)
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", ErrKeyNotFound, key)
 	}
-	object, ok := field.(map[string]any)
+	object, ok := child.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("%w: %q", ErrNotObject, key)
 	}
 	mutator := new(objectMutator)
+	mutator.parent = parent
 	mutator.object = object
 	mutator.identifier = key
 	return mutator, nil
@@ -116,10 +141,42 @@ func mergeObject(lhs map[string]any, rhs map[ref.Val]ref.Val) ref.Val {
 		val := rhs[key].Value()
 		switch val.(type) {
 		case []ref.Val:
-			return types.NewErr("array merger not ready")
+			return types.NewErr("array cannot merge with list")
+		case map[ref.Val]ref.Val:
+			lhs[name] = refMapToNative(val.(map[ref.Val]ref.Val))
 		default:
 			lhs[name] = val
 		}
 	}
 	return types.Null(0)
+}
+
+func refMapToNative(refMap map[ref.Val]ref.Val) map[string]any {
+	ret := make(map[string]any)
+	for kv, vv := range refMap {
+		v := vv.Value()
+		switch v.(type) {
+		case []ref.Val:
+			v = refSliceToNative(v.([]ref.Val))
+		case map[ref.Val]ref.Val:
+			v = refMapToNative(v.(map[ref.Val]ref.Val))
+		}
+		ret[kv.Value().(string)] = v
+	}
+	return ret
+}
+
+func refSliceToNative(refSlice []ref.Val) []any {
+	ret := make([]any, 0, len(refSlice))
+	for _, vv := range refSlice {
+		v := vv.Value()
+		switch v.(type) {
+		case []ref.Val:
+			v = refSliceToNative(v.([]ref.Val))
+		case map[ref.Val]ref.Val:
+			v = refMapToNative(v.(map[ref.Val]ref.Val))
+		}
+		ret = append(ret, v)
+	}
+	return ret
 }
